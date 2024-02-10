@@ -35,7 +35,7 @@ namespace HLoaderBot
 
         public static string TagsMessageParse(InfoChatMessageType type)
         {
-            InfoChatMessage? message = DataReader.getInstance().GetInfoChatMessage(type);
+            InfoChatMessage? message = DataReader.Instance.GetInfoChatMessage(type);
             string tagsMessage = "";
 
             foreach(KeyValuePair<string, int> entry in message.Value.Items)

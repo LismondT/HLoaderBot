@@ -11,7 +11,7 @@ namespace HLoaderBot
     {
         public static void TitleToTagsSync()
         {
-            List<Title> titles = DataReader.getInstance().GetTitlesList();
+            List<Title> titles = DataReader.Instance.GetTitlesList();
 
             if (titles.Count == 0)
             {
@@ -25,7 +25,6 @@ namespace HLoaderBot
             {
                 DataWriter.Instance.AddTagsToInfoChat(title);
             }
-
         }
     }
 }

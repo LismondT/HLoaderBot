@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using System.Text.RegularExpressions;
 using Telegram.Bot;
+using Telegram.Bot.Requests;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 
@@ -11,6 +12,27 @@ namespace HLoaderBot
         string Name { get; }
         Task Execute(TelegramBotClient botClient, Message message, string[] args);
     }
+
+
+
+    /*  ###########
+        /start   
+        ###########*/
+    class StartCommand : ICommand
+    {
+        public string Name => "/start";
+        public async Task Execute(TelegramBotClient botClient, Message message, string[] args)
+        {
+            string startMessage =
+                "Этот бот создан для сохранения тайтлов с сайта nhnetai.net \n" +
+                "Его необходимо привязать к группе, для этого нужно создать группу, включить в ней темы и дать права боту, затем прописать команду /init в группе\n" +
+                "После этого будет создана тема \"Все тайтлы\", в которую будет отправляться информация обо всех добавленных тайтлах, а бот будет привязан к ней\n";
+
+            await botClient.SendTextMessageAsync(message.Chat.Id, startMessage);
+        }
+    }
+
+
 
 
     /*  ###########
@@ -37,6 +59,7 @@ namespace HLoaderBot
 
 
 
+
     /*  ###########
         /cid      
         ###########*/
@@ -56,6 +79,7 @@ namespace HLoaderBot
             await botClient.SendTextMessageAsync(message.Chat.Id, infoMessage, topicId);
         }
     }
+
 
 
 
@@ -86,7 +110,7 @@ namespace HLoaderBot
             Title title = new()
             {
                 Name = "",
-                DataId = DataReader.getInstance().GetCount() ?? 0
+                DataId = DataReader.Instance.GetCount() ?? 0
             };
             List<Page> pages = new();
 
@@ -102,8 +126,8 @@ namespace HLoaderBot
             int serverNumber = 0;
             int sendInterval = 0;
 
-            long? mainChatId = DataReader.getInstance().GetMainChatId();
-            int? infoChatTopicId = DataReader.getInstance().GetInfoChatTopicId();//id чата со всеми тайтлами
+            long mainChatId = DataReader.Instance.GetMainChatId().Value;
+            int? infoChatTopicId = DataReader.Instance.GetInfoChatTopicId();//id чата со всеми тайтлами
             int topicId = 0; //id чата этого тайтла
 
 
@@ -132,7 +156,6 @@ namespace HLoaderBot
             {
                 Logger.Log(e.Message, ConsoleColor.Red);
             }
-
 
             if (mainChatId == null)
             {
@@ -171,9 +194,19 @@ namespace HLoaderBot
             };
             InlineKeyboardMarkup infoChatKeyboard = new(toTitleBtn);
 
-
+            
             //Отправка в чат тайтла
-            await botClient.SendTextMessageAsync(mainChatId, info, topicId);
+            try
+            {
+                Message infoTopicMsg = await botClient.SendTextMessageAsync(mainChatId, info, topicId);
+                await botClient.PinChatMessageAsync(mainChatId, infoTopicMsg.MessageId, true);
+            }
+            catch (Exception e)
+            {
+                Logger.Log(e.Message, ConsoleColor.Red);
+            }
+            
+
             for (int i = firstPage; i <= title.PagesCount; i++)
             {
                 if (!uniqPages.TryGetValue(i, out string? thisFormate))
@@ -188,13 +221,13 @@ namespace HLoaderBot
                     messageId = m.MessageId,
                     fileId = m.Photo?[0].FileId ?? ""
                 };
-
                 pages.Add(page);
 
-                Thread.Sleep(sendInterval);
+                await Task.Delay(sendInterval);
             }
 
             title.Pages = pages;
+
 
             //Отправка в чат с информацией
             Message viewPhotoMessage = await botClient.SendPhotoAsync(mainChatId,
@@ -208,9 +241,35 @@ namespace HLoaderBot
             {
                 Logger.Log("[Command](/add) Title was added to db", ConsoleColor.Green);
             }
+
+            DataHelper.TitleToTagsSync();
+            ChangeTagsMessages(botClient, mainChatId);
         }
 
-        private Title TitleInfoDataParse(ref Title title, string message)
+
+        private static async void ChangeTagsMessages(ITelegramBotClient botClient, long chatId)
+        {
+            string tagsMsgStr = "Tags:\n" + MessageBuilder.TagsMessageParse(InfoChatMessageType.AllTags);
+            string groupsMsgStr = "Groups:\n" + MessageBuilder.TagsMessageParse(InfoChatMessageType.AllGroups);
+            string artistsMsgStr = "Artists:\n" + MessageBuilder.TagsMessageParse(InfoChatMessageType.AllArtists);
+            string charactersMsgStr = "Characters:\n" + MessageBuilder.TagsMessageParse(InfoChatMessageType.AllCharacters);
+            string parodiesMsgStr = "Parodies:\n" + MessageBuilder.TagsMessageParse(InfoChatMessageType.AllParodies);
+
+            int tagsMsgId = DataReader.Instance.GetInfoChatMessage(InfoChatMessageType.AllTags).Value.messageId;
+            int groupsMsgId = DataReader.Instance.GetInfoChatMessage(InfoChatMessageType.AllGroups).Value.messageId;
+            int artistsMsgId = DataReader.Instance.GetInfoChatMessage(InfoChatMessageType.AllArtists).Value.messageId;
+            int charactersMsgId = DataReader.Instance.GetInfoChatMessage(InfoChatMessageType.AllCharacters).Value.messageId;
+            int parodiesMsgId = DataReader.Instance.GetInfoChatMessage(InfoChatMessageType.AllParodies).Value.messageId;
+
+            try { await botClient.EditMessageTextAsync(chatId, tagsMsgId, tagsMsgStr); } catch { };
+            try { await botClient.EditMessageTextAsync(chatId, groupsMsgId, groupsMsgStr); } catch { };
+            try { await botClient.EditMessageTextAsync(chatId, artistsMsgId, artistsMsgStr); } catch { };
+            try { await botClient.EditMessageTextAsync(chatId, charactersMsgId, charactersMsgStr); } catch { };
+            try { await botClient.EditMessageTextAsync(chatId, parodiesMsgId, parodiesMsgStr); } catch { };
+        }
+
+
+        private static Title TitleInfoDataParse(ref Title title, string message)
         {
             string pattern = @"<([^>]*)>";
             MatchCollection matches = Regex.Matches(message, pattern);
@@ -221,7 +280,7 @@ namespace HLoaderBot
                 string[] messageDataParts = messageData.Split(' ');
                 string type = messageDataParts[0].ToLower();
 
-                List<string> titleData = new List<string>();
+                List<string> titleData = new();
 
                 foreach (string titleDataPart in messageDataParts)
                 {
@@ -248,13 +307,13 @@ namespace HLoaderBot
 
 
 
-        private Dictionary<int, string> UniqPagesParse(string message)
+        private static Dictionary<int, string> UniqPagesParse(string message)
         {
             string pattern = @"<([^>]*)>";
             MatchCollection matches = Regex.Matches(message, pattern);
-            Dictionary<int, string> uniqPages = new Dictionary<int, string>();
+            Dictionary<int, string> uniqPages = new();
 
-            foreach (Match match in matches)
+            foreach (Match match in matches.Cast<Match>())
             {
                 string data = match.Groups[1].Value;
                 string[] dataParts = data.Split(' ');
@@ -265,7 +324,7 @@ namespace HLoaderBot
 
                 if (formate.EndsWith(':'))
                 {
-                    formate = formate.Substring(0, formate.Length - 1);
+                    formate = formate[..^1];
                 }
 
                 foreach (string part in dataParts.Skip(1).ToArray())
@@ -338,11 +397,13 @@ namespace HLoaderBot
     }
 
 
+
+
     /*  ###########
      *  /tags
      *  ###########
-     *  --type "<string>" (InfoChatMessageType) ? Если не указано, то отправятся все теги
-     *  
+     *  <string> (TypeName) ? Если не указано, то отправятся все теги
+     *  TypeName: tags, groups, artists, characters, parodies
      */
     class TagsCommand : ICommand
     {
@@ -354,6 +415,12 @@ namespace HLoaderBot
             string tagsMessage = "";
 
             long chatId = message.Chat.Id;
+
+            if (args.Length >= 2)
+            {
+                type = args[1];
+            }
+
             //ToDo add for one type of tags
 
             if (type == "")
@@ -369,10 +436,54 @@ namespace HLoaderBot
                 tagsMessage += "Parodies:\n";
                 tagsMessage += MessageBuilder.TagsMessageParse(InfoChatMessageType.AllParodies);
             }
+            else
+            {
+                switch (type)
+                {
+                    case "tags":
+                        tagsMessage += "Tags:\n";
+                        break;
+
+                    case "groups":
+                        tagsMessage += "Groups:\n";
+                        break;
+
+                    case "artists":
+                        tagsMessage += "Artists:\n";
+                        break;
+
+                    case "characters":
+                        tagsMessage += "Characters:\n";
+                        break;
+
+                    case "parodies":
+                        tagsMessage += "Parodies:\n";
+                        break;
+
+                    default:
+                        tagsMessage = "/tags <string> (TypeName) ? Если не указано, то отправятся все теги\nTypeName: tags, groups, artists, characters, parodies";
+                        break;
+                }
+                
+                tagsMessage += argTypePair.ContainsKey(type) ? MessageBuilder.TagsMessageParse(argTypePair[type]) : "";
+            }
+
+            if (tagsMessage == "") return;
 
             await botClient.SendTextMessageAsync(chatId, tagsMessage);
         }
+
+        private readonly Dictionary<string, InfoChatMessageType> argTypePair = new()
+        {
+            {"tags",       InfoChatMessageType.AllTags},
+            {"groups",     InfoChatMessageType.AllGroups},
+            {"artists",    InfoChatMessageType.AllArtists},
+            {"characters", InfoChatMessageType.AllCharacters},
+            {"parodies",   InfoChatMessageType.AllParodies}
+        };
     }
+
+
 
 
     /*  ###########
@@ -389,18 +500,25 @@ namespace HLoaderBot
             long chatId = message.Chat.Id;
             ForumTopic topic;
 
+            int[] tagsMsgId = new int[5];
+
             try
             {
                 topic = await botClient.CreateForumTopicAsync(chatId, "Все тайтлы");
+                for (int i = 0; i < tagsMsgId.Length; i++)
+                {
+                    Message m = await botClient.SendTextMessageAsync(chatId, "place for tags", topic.MessageThreadId);
+                    tagsMsgId[i] = m.MessageId;
+                }
             }
             catch(Exception ex)
             {
                 Logger.Log(ex.Message, ConsoleColor.Red);
-                await botClient.SendTextMessageAsync(chatId, "Включите в этой группе темы и/или дайте права боту");
+                await botClient.SendTextMessageAsync(chatId, "Включите в этой группе темы и дайте права боту");
                 return;
             }
 
-            DataWriter.Instance.InitData(chatId, topic.MessageThreadId);
+            DataWriter.Instance.InitData(chatId, topic.MessageThreadId, tagsMsgId);
         }
     }
 }

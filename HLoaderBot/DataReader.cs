@@ -21,91 +21,85 @@ namespace HLoaderBot
     //Singletone
     class DataReader : IDataReader
     {
-        private static DataReader? instance;
-        private static IDataReader? reader;
+        private static DataReader? _instance;
+        private static IDataReader? _reader;
+
+        public static DataReader Instance => _instance ??= new DataReader();
 
         DataReader()
         {
-            reader = null;
-        }
-
-        public static DataReader getInstance()
-        {
-            if (instance == null)
-                instance = new DataReader();
-            return instance;
+            _reader = null;
         }
 
         public void SetDataReader(IDataReader ireader)
         {
-            if (reader == null)
-                reader = ireader;
+            _reader ??= ireader;
         }
 
         public int? GetInfoChatTopicId()
         {
-            if (reader == null)
+            if (_reader == null)
             {
                 Logger.Log($"[DataReaderERROR](GetInfoChatTopicId): reader == null", ConsoleColor.Red);
                 return null;
             }
 
-            return reader.GetInfoChatTopicId();
+            return _reader.GetInfoChatTopicId();
         }
 
         public long? GetMainChatId()
         {
-            if (reader == null)
+            if (_reader == null)
             {
                 Logger.Log($"[DataReaderERROR](GetMainChatId): reader == null", ConsoleColor.Red);
                 return null;
             }
 
-            return reader.GetMainChatId();
+            return _reader.GetMainChatId();
         }
 
         public InfoChatMessage? GetInfoChatMessage(InfoChatMessageType type)
         {
-            if (reader == null)
+            if (_reader == null)
             {
                 Logger.Log($"[DataReaderERROR](GetInfoChatMessage): reader == null", ConsoleColor.Red);
                 return null;
             }
 
-            return reader.GetInfoChatMessage(type);
+            return _reader.GetInfoChatMessage(type);
         }
 
         public Title? GetTitle(int id)
         {
-            if (reader == null)
+            if (_reader == null)
             {
                 Logger.Log($"[DataReaderERROR](GetTitle): reader == null", ConsoleColor.Red);
                 return null;
             }
 
-            return reader.GetTitle(id);
+            return _reader.GetTitle(id);
         }
 
         public List<Title> GetTitlesList()
         {
-            if (reader == null)
+            if (_reader == null)
             {
                 Logger.Log($"[DataReaderERROR](GetTitlesList): reader == null", ConsoleColor.Red);
                 return new();
             }
 
-            return reader.GetTitlesList();
+            return _reader.GetTitlesList();
         }
 
         public int? GetCount()
         {
-            if (reader == null)
+            if (_reader == null)
             {
                 Logger.Log($"[DataReaderERROR](GetCount): reader == null", ConsoleColor.Red);
                 return null;
             }
 
-            return reader.GetCount();
+            return _reader.GetCount();
         }
     }
 
@@ -190,24 +184,24 @@ namespace HLoaderBot
 
         public InfoChatMessage? GetInfoChatMessage(InfoChatMessageType type)
         {
-            XmlDocument doc = new XmlDocument();
-            InfoChatMessage outMessage = new();
-            string messageNodeName;
-            outMessage.messageId = 0;
-            outMessage.Items = new();
+            XmlDocument doc = new();
+            InfoChatMessage outMessage = new()
+            {
+                messageId = 0,
+                Items = new()
+            };
 
             doc.Load(FILE_PATH);
 
-            switch (type)
+            string messageNodeName = type switch
             {
-                case InfoChatMessageType.AllTags: messageNodeName = "TagsMessage"; break;
-                case InfoChatMessageType.AllGroups: messageNodeName = "GroupsMessage"; break;
-                case InfoChatMessageType.AllArtists: messageNodeName = "ArtistsMessage"; break;
-                case InfoChatMessageType.AllCharacters: messageNodeName = "CharactersMessage"; break;
-                case InfoChatMessageType.AllParodies: messageNodeName = "ParodiesMessage"; break;
-                default: messageNodeName = ""; break;
-            }
-
+                InfoChatMessageType.AllTags => "TagsMessage",
+                InfoChatMessageType.AllGroups => "GroupsMessage",
+                InfoChatMessageType.AllArtists => "ArtistsMessage",
+                InfoChatMessageType.AllCharacters => "CharactersMessage",
+                InfoChatMessageType.AllParodies => "ParodiesMessage",
+                _ => "",
+            };
 
             XmlNode? mainNode = doc.GetElementsByTagName("Main")[0];
 
@@ -243,7 +237,7 @@ namespace HLoaderBot
                     return null;
                 };
 
-                outMessage.messageId = long.Parse(id);
+                outMessage.messageId = int.Parse(id);
 
                 foreach (XmlNode itemNode in node.ChildNodes)
                 {
@@ -320,7 +314,7 @@ namespace HLoaderBot
                     string languagesStr = "";
                     string categoriesStr = "";
 
-                    List<Page> pages = new List<Page>();
+                    List<Page> pages = new();
                     int viewPage = -1;
                     int pagesCount = -1;
 
@@ -365,7 +359,7 @@ namespace HLoaderBot
                             {
                                 if (pageNode.Name != "Page") continue;
 
-                                Page page = new Page();
+                                Page page = new();
                                 XmlAttributeCollection pageAttr = pageNode.Attributes;
 
                                 string fileId = pageAttr["fileId"].Value;
@@ -404,7 +398,7 @@ namespace HLoaderBot
 
             static List<string> InfoStrToList(string str)
             {
-                List<string> list = new List<string>();
+                List<string> list = new();
 
                 string[] parts = str.Split(' ');
                 foreach (string part in parts)
@@ -422,7 +416,7 @@ namespace HLoaderBot
         public List<Title> GetTitlesList()
         {
             int? count = GetCount();
-            List<Title> titles = new List<Title>();
+            List<Title> titles = new();
 
 
             if (count == null || count == 0)
@@ -490,7 +484,7 @@ namespace HLoaderBot
     {
         public TokenDataParser() { }
 
-        public static string getToken(string path)
+        public static string GetToken(string path)
         {
             string token = "";
             XmlDocument doc = new();

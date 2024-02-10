@@ -14,7 +14,7 @@ namespace HLoaderBot
         public bool AddTagsToInfoChat(InfoChatMessageType type, List<string> tags);
         public bool AddTagsToInfoChat(Title title);
         public bool DeleteAllTags();
-        public void InitData(long chatId, int infoChatTopicId);
+        public void InitData(long chatId, int infoChatTopicId, int[] tagsMsgId);
     }
 
     class DataWriter : IDataWriter
@@ -22,7 +22,7 @@ namespace HLoaderBot
         private static IDataWriter? _writer;
         private static DataWriter? _instance;
 
-        public static DataWriter Instance => _instance ?? (_instance = new DataWriter());
+        public static DataWriter Instance => _instance ??= new DataWriter();
         
         public void SetWriter(IDataWriter writer)
         {
@@ -53,10 +53,10 @@ namespace HLoaderBot
             return _writer.DeleteAllTags();
         }
 
-        public void InitData(long chatId, int infoChatTopicId)
+        public void InitData(long chatId, int infoChatTopicId, int[] tagsMsgId)
         {
             if (_writer == null) return;
-            _writer.InitData(chatId, infoChatTopicId);
+            _writer.InitData(chatId, infoChatTopicId, tagsMsgId);
         }
     }
 
@@ -66,7 +66,7 @@ namespace HLoaderBot
         private readonly string? _filepath;
         private string? FILE_PATH => _filepath + _filename;
 
-        Dictionary<InfoChatMessageType, string> _nodeInfoChatMsg = new()
+        readonly Dictionary<InfoChatMessageType, string> _nodeInfoChatMsg = new()
         {
             { InfoChatMessageType.AllTags, "TagsMessage" },
             { InfoChatMessageType.AllGroups, "GroupsMessage" },
@@ -85,7 +85,7 @@ namespace HLoaderBot
         {
             if (FILE_PATH == null) return false;
 
-            XmlDocument doc = new XmlDocument();
+            XmlDocument doc = new();
             doc.Load(FILE_PATH);
             
             XmlNode? titlesNode = doc.SelectSingleNode("/Main/Titles");
@@ -184,8 +184,8 @@ namespace HLoaderBot
                 return false;
             }
 
-            XmlDocument doc = new XmlDocument();
-            InfoChatMessage? chatMessage = DataReader.getInstance().GetInfoChatMessage(type);
+            XmlDocument doc = new();
+            InfoChatMessage? chatMessage = DataReader.Instance.GetInfoChatMessage(type);
             
             doc.Load(FILE_PATH);
 
@@ -194,16 +194,8 @@ namespace HLoaderBot
             for (int i = 0; i < tags.Count; i++)
             {
                 var tag = tags[i];
-                
-                if (chatMessage.Value.Items.ContainsKey(tag))
-                {
-                    int count = chatMessage.Value.Items[tag];
-                    chatMessage.Value.Items[tag] = count + 1;
-                }
-                else
-                {
-                    chatMessage.Value.Items[tag] = 1;
-                }
+
+                chatMessage.Value.Items[tag] = !chatMessage.Value.Items.TryGetValue(tag, out int count) ? 1 : count + 1;
             }
 
             messageNode.InnerText = "";
@@ -248,7 +240,7 @@ namespace HLoaderBot
 
         public bool DeleteAllTags()
         {
-            XmlDocument doc = new XmlDocument();
+            XmlDocument doc = new();
             doc.Load(FILE_PATH);
 
             foreach(KeyValuePair<InfoChatMessageType, string> entry in _nodeInfoChatMsg)
@@ -267,7 +259,7 @@ namespace HLoaderBot
             return true;
         }
 
-        public void InitData(long chatId, int infoChatTopicId)
+        public void InitData(long chatId, int infoChatTopicId, int[] tagsMsgId)
         {
             XmlDocument doc = new();
             XmlDeclaration dec = doc.CreateXmlDeclaration("1.0", "utf-8", null);
@@ -286,20 +278,28 @@ namespace HLoaderBot
 
             XmlAttribute chatIdAttr = doc.CreateAttribute("chatId");
             XmlAttribute infoChatTopicAttr = doc.CreateAttribute("topicId");
-            XmlAttribute defaultMessageIdAttr = doc.CreateAttribute("messageId");
+            XmlAttribute tagsMessageIdAttr = doc.CreateAttribute("messageId");
+            XmlAttribute groupsMessageIdAttr = doc.CreateAttribute("messageId");
+            XmlAttribute artistsMessageIdAttr = doc.CreateAttribute("messageId");
+            XmlAttribute charactersMessageIdAttr = doc.CreateAttribute("messageId");
+            XmlAttribute parodiesMessageIdAttr = doc.CreateAttribute("messageId");
 
 
             chatIdAttr.Value = chatId.ToString();
             infoChatTopicAttr.Value = infoChatTopicId.ToString();
-            defaultMessageIdAttr.Value = "0";
+            tagsMessageIdAttr.Value = tagsMsgId[0].ToString();
+            groupsMessageIdAttr.Value = tagsMsgId[1].ToString();
+            artistsMessageIdAttr.Value = tagsMsgId[2].ToString();
+            charactersMessageIdAttr.Value = tagsMsgId[3].ToString();
+            parodiesMessageIdAttr.Value = tagsMsgId[4].ToString();
 
             mainNode.Attributes?.Append(chatIdAttr);
             infoChatNode.Attributes?.Append(infoChatTopicAttr);
-            tagsMessageNode.Attributes?.Append(defaultMessageIdAttr);
-            groupsMessageNode.Attributes?.Append(defaultMessageIdAttr);
-            artistsMessageNode.Attributes?.Append(defaultMessageIdAttr);
-            charactersMessageNode.Attributes?.Append(defaultMessageIdAttr);
-            parodiesMessageNode.Attributes?.Append(defaultMessageIdAttr);
+            tagsMessageNode.Attributes?.Append(tagsMessageIdAttr);
+            groupsMessageNode.Attributes?.Append(groupsMessageIdAttr);
+            artistsMessageNode.Attributes?.Append(artistsMessageIdAttr);
+            charactersMessageNode.Attributes?.Append(charactersMessageIdAttr);
+            parodiesMessageNode.Attributes?.Append(parodiesMessageIdAttr);
 
 
             infoChatNode.AppendChild(tagsMessageNode);

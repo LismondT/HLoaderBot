@@ -11,7 +11,7 @@
 
     struct InfoChatMessage
     {
-        public long messageId;
+        public int messageId;
         public Dictionary<string, int> Items;
     }
 

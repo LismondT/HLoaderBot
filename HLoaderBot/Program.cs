@@ -16,15 +16,17 @@ namespace HLoaderBot
 
         public static void Main(string[] args)
         {
-            string TOKEN = TokenDataParser.getToken("./data/init.xml");
+            string TOKEN = TokenDataParser.GetToken("./data/init.xml");
+
+            if (TOKEN == "") return;
+
             using CancellationTokenSource cts = new();
             bot = new TelegramBotClient(TOKEN);
 
-            XmlDataReader reader = new XmlDataReader("./data/titles.xml");
-            XmlDataWriter writer = new XmlDataWriter("./data/", "titles.xml");
-            DataReader.getInstance().SetDataReader(reader);
+            XmlDataReader reader = new("./data/titles.xml");
+            XmlDataWriter writer = new("./data/", "titles.xml");
+            DataReader.Instance.SetDataReader(reader);
             DataWriter.Instance.SetWriter(writer);
-
 
             commands = new Dictionary<string, ICommand>();
             AddCommands();
@@ -41,9 +43,8 @@ namespace HLoaderBot
                 cancellationToken: cts.Token
             );
 
-          
 
-            Logger.Log($"[===================]-> [Bot ({bot.GetMeAsync().Result.FirstName}) start recieved] <-[===================] <@{{date}}>\n", ConsoleColor.Green);
+            Logger.Log($"[===================]-> [Bot ({bot.GetMeAsync().Result.FirstName}) start recieved] <-[===================] <@{{date}}>", ConsoleColor.Green);
             Console.ReadLine();
             cts.Cancel();
         }
@@ -91,9 +92,9 @@ namespace HLoaderBot
             Logger.Log($"[Message](chat: {chatId}\n\t| userId: {userId}\n\t| userName: {userName}): {messageLog}", ConsoleColor.Yellow);
 
 
-            if (commands.ContainsKey(commandName))
+            if (commands.TryGetValue(commandName, out ICommand? command))
             {
-                await commands[commandName].Execute(bot, message, args);
+                await command.Execute(bot, message, args);
                 Logger.Log($"[Command]({commandName}) Complete", ConsoleColor.Green);
             }
 
@@ -136,7 +137,7 @@ namespace HLoaderBot
                 {
                     if (buffer != "")
                     {
-                        buffer = buffer.Substring(0, buffer.Length - 1);
+                        buffer = buffer[..^1];
                         args.Add(buffer.Trim('\"'));
                         buffer = "";
                     }
@@ -176,7 +177,7 @@ namespace HLoaderBot
                 return;
             }
 
-
+            AddCommand(new StartCommand());
             AddCommand(new MessageIdCommand());
             AddCommand(new ChatIdCommand());
             AddCommand(new AddTitleCommand());
